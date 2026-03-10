@@ -1,0 +1,298 @@
+---
+title: "Applied Statistic Assignment"
+author: "Saioa Galvin"
+output:
+  html_document:
+    number_sections: yes
+  pdf_document:
+    number_sections: yes
+header-includes:
+  - \newcommand{\bm}[1]{\boldsymbol{#1}}
+  - \newcommand{\mat}[1]{\begin{bmatrix}#1\end{bmatrix}}
+---
+
+```{r setup, include = FALSE}
+# Set default code chunk options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  eval = TRUE
+)
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(afex)
+  library(ggplot2)
+  library(dplyr)
+  library(tidyr)
+  library(lubridate)
+  library(viridis)
+  library(gridExtra)
+  library(patchwork)
+  library(kableExtra)
+  library(cv)
+  library(stringr)
+  library(fitdistrplus)
+  library(readxl)
+  library(quantreg)
+  library(purrr)
+  library(broom)
+  library(triangle)
+})
+
+theme_set(
+  theme_bw() +
+    theme(
+      plot.title = element_text(size = 30, hjust = 0.5),
+      axis.title.x = element_text(size = 25),
+      axis.title.y = element_text(size = 25),
+      axis.text = element_text(size = 25),
+      legend.title = element_text(size = 25),
+      legend.text = element_text(size = 25),
+      plot.caption = element_text(size = 25, hjust = 1),
+      plot.subtitle = element_text(size = 25, face = "italic")
+    )
+)
+
+set.seed(12345L)
+```
+
+```{r reading_code, code=readLines("code.R"), eval=TRUE, echo=FALSE}
+source("code.R")
+```
+
+<p style="font-size:2em; font-weight:bold;">
+
+Contents
+
+</p>
+
+::: {#custom-toc}
+:::
+
+```{=html}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var toc = document.getElementById("TOC");
+  var target = document.getElementById("custom-toc");
+  if (toc && target) {
+    target.appendChild(toc);
+  }
+});
+</script>
+```
+
+# The Dramatic US Presidential Election 2000 (20 Marks)
+
+To examine if voting for the Reform party was irregular in Palm Beach, Florida in 2000, we examine a dataset of vote counts for the Reform party across the 67 counties in Florida over 1996 and 2000.
+
+## EDA
+
+First, we conduct EDA in Figure 1. This plot shows that some counties saw a dramatic increase in votes for the Reform party in 2000 (when Buchanan was candidate) compared to 1996 (when Perot was candidate). We are particularly interested in Palm Beach for this analysis, and we see that there is evidence of a change of vote count between the two elections in that county.
+
+```{r q1_eda, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+elections <- read.table("BushGore.dat", header = TRUE)
+
+elections_long <- pivot_longer(df,
+                        cols = c(Perot, Buchanan),
+                        names_to = "Candidate",
+                        values_to = "Votes")
+
+ggplot(elections_long, aes(x = County, y = Votes, group = County)) +
+  geom_line(color = "gray70") +
+  geom_point(aes(color = Candidate), size = 7) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  labs(title = "Figure 1: Votes by Florida County",
+       x = "Counties in Florida",
+       y = "Votes")
+```
+
+## Creating a Model
+
+To evaluate whether there was a significant difference in voting habits in Palm Beach County, Florida between 1996 and 2000, we can construct a model to compare voting habits across counties.
+
+The full model is
+
+$$m_{full} : \text{Buchanan}_i = \beta_0 + \beta_1\text{Perot}_i + \epsilon_i, \\
+\epsilon_i \sim N(0, \sigma^2) \text{ for } i = 1, \dots, 67,$$
+
+where $\text{Buchanan}_i$ is the vote count for county $i$ in 2000, $\beta_0$ is the intercept, $\beta_1$ is the coefficient for vote count $\text{Perot}_i$ in county $i$ in 1996. We assume residual error $\epsilson_i$ is independently normally distributed, with constant variance $\sigma^2$.
+
+To evaluate this model, we can run the following code in R.
+
+```{r full_model, echo = TRUE, message = FALSE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+full_model <- lm(formula = Buchanan ~ Perot, data = elections)
+summary(full_model)
+```
+
+As expected, from the summary of $m_{full$ we see that the $p$-value for $\beta_1$ is very significant, indicating that the two years of voting habits across Florida are highly correlated. We can look at behaviour on a county-level in Figure 2.
+
+```{r m_full_scatter, echo = TRUE, message = FALSE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+ggplot(df, aes(x = Perot, y = Buchanan, label = County)) +
+  geom_point(size = 7) +
+  geom_text(nudge_y = 50, size = 5) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(
+    title = "Figure 2: Reform Party Vote by County",
+    x = "Perot Votes (1996)",
+    y = "Buchanan Votes (2000)"
+  )
+```
+
+By plotting the regression line in Figure 2, we see that most points are fitted by $m_{full}$, apart from a few outliers. We see that the most significant outlier is Palm Beach.
+
+Additionally, we can find the county that that had the largest deviation from the expected Buchanan vote.
+
+```{r outlier_checking}
+elections$residuals <- resid(full_model)
+
+elections[which.max(elections$residuals), ]
+```
+
+This indicates that can compare our full model to a reduced model without Palm Beach,
+
+$$m_{reduced} : \text{Buchanan}_i = \beta_0 + \beta_1\text{Perot}_i + \epsilon_i, \\
+\epsilon_i \sim N(0, \sigma^2) \text{ for } i = 1, \dots, 66,$$
+
+where we have assumed that Palm Beach corresponds to $i = 67$ in $m_{full}$.
+
+This will show the significance of changes in Palm Beach voting habits between 1996 and 2000, and give an indication of whether they were irregular in 2000.
+
+```{r reduced_model}
+reduced_elections <- elections[elections$County != "PalmBeach", ]
+reduced_model <- lm(formula = Buchanan ~ Perot, data = reduced_elections)
+summary(reduced_model)
+```
+
+## Evaluating Our Models
+
+From the summary of $m_{reduced}$ we can evaluate model statistics to compare performance. Figure 3 shows this in table form.
+
+```{r full_v_reduced_table}
+# Create summary table
+summary_table <- data.frame(
+  Statistic = c(
+    "$R^2$",
+    "Adjusted $R^2$",
+    "$\\hat{\\beta}_0$",
+    "95\\% CI for $\\hat{\\beta}_0$",
+    "$\\hat{\\beta}_1$",
+    "95\\% CI for $\\hat{\\beta}_1$"
+  ),
+    
+  Full = c(
+    round(summary(full_model)$r.squared, 4),
+    round(summary(full_model)$adj.r.squared, 4),
+    round(summary(full_model)$coef[1,1], 4),
+    paste0("(", round(confint(full_model)[1,1],4), ", ", round(confint(full_model)[1,2],4), ")"),
+    round(summary(full_model)$coef[2,1], 4),
+    paste0("(", round(confint(full_model)[2,1],4), ", ", round(confint(full_model)[2,2],4), ")")
+  ),
+  
+  Reduced = c(
+    round(summary(reduced_model)$r.squared, 4),
+    round(summary(reduced_model)$adj.r.squared, 4),
+    round(summary(reduced_model)$coef[1,1], 4),
+    paste0("(", round(confint(reduced_model)[1,1],4), ", ", round(confint(reduced_model)[1,2],4), ")"),
+    round(summary(reduced_model)$coef[2,1], 4),
+    paste0("(", round(confint(reduced_model)[2,1],4), ", ", round(confint(reduced_model)[2,2],4), ")")
+  )
+)
+
+colnames(summary_table) <- c("Statistic", "$m_{full}$", "$m_{reduced}$")
+
+kable(
+  summary_table,
+  caption = "Figure 3: Summary Table Comparing Full and Reduced Models",
+  align = c("l", "c", "c"),
+  format = "markdown",
+  escape = FALSE
+)
+```
+
+From this table we can deduce that $m_{reduced}$ has a much higher $R^2$ and Adjusted $R^2$. 
+
+Here, 
+
+$$R^2 = 1 - \frac{RSS}{TSS} = 1 - \frac{\sum_{i=1}^n (\text{Buchanan}_i - \widehat{\text{Buchanan}}_i)^2}{\sum_{i=1}^n (\text{Buchanan}_i - \overline{\text{Buchanan}}_i)^2}$$
+
+and 
+
+$$\text{Adjusted } R^2 = 1 - (1 - R^2)\frac{n - 1}{n - p - 1},$$
+
+where $n$ is the total number of observations in the model and $p$ is the total number of parameters.
+
+The $R^2$ and Adjusted $R^2$ represent the goodness-of-fit of our models, so they can tell us how well votes for Perot in 1996 can predict votes for Buchanan in 2000 across the counties in Florida. Adjusted $R^2$ penalises unnecessary variables. As the Adjusted $R^2$ is much higher for $m_{reduced}$, we can see that votes in Palm Beach reduced the quality of our predictions. This supports the hypothesis that irregular voting was observed in Palm Beach.
+
+The intercept estimate $\hat{\beta}_0$ represents an estimate of votes for Buchanan if votes for Perot were zero. Therefore it is more important to look at the slope estimate $\hat{\beta}_1$ in our analysis, as this represents the expected change in Buchanan votes given a 1-vote increase in Perot votes. We can see that the relationship between Buchanan votes and Perot votes changes between $m_{full}$ and $m_{reduced}$ as $\hat{\beta}_1$ decreases.
+
+The 95\% confidence intervals for our coefficient estimates can be written as
+
+$$\hat{\beta}_k \pm t_{n - p, 0.975} \times SE(\hat{\beta}_k) \text{ for } k = 0,1$$
+
+where $t_{n - p, 0.975}$ is the $t$ statistic for our 95\% CI with $n$ total number of observations and $p=2$ total number of parameters. Also, $SE(\hat{\beta}_k)$ is the standard error of our coefficient estimate.
+
+The confidence intervals give the range of plausible values at $95%$ confidence. As the CI for $\hat{\beta}_1$ for both models doesn't include 0, we can conclude that Perot votes predict Buchanan votes. Additionally, the CI for $\hat{\beta}_1$ for $m_{reduced}$ is half the size of that for $m_{full}$, indicating a more precise estimate.
+
+## Prediction Interval Evaluation
+
+Finally, we can evaluate how well our models predict results for Palm Beach.
+
+```{r predicting_palm}
+palm_beach_data <- elections[elections$County == "PalmBeach", ]
+
+# using full model
+pred_full <- predict(full_model, newdata = palm_beach_data, interval = "prediction", level = 0.95)
+
+# using reduced model
+pred_reduced <- predict(reduced_model, newdata = palm_beach_data, interval = "prediction", level = 0.95)
+
+pred_summary <- data.frame(
+  Statistic = c(
+    "County",
+    "Observed",
+    "Predicted",
+    "95% PI",
+    "Residual"
+  ),
+  Full = c(
+    palm_beach_data$County,
+    palm_beach_data$Buchanan,
+    round(pred_full[,"fit"], 4),
+    paste0("(", round(pred_full[,"lwr"], 4), ", ", round(pred_full[,"upr"], 4), ")"),
+    palm_beach_data$Buchanan - pred_full[,"fit"]
+  ),
+  Reduced = c(
+    palm_beach_data$County,
+    palm_beach_data$Buchanan,
+    round(pred_reduced[,"fit"], 4),
+    paste0("(", round(pred_reduced[,"lwr"], 4), ", ", round(pred_reduced[,"upr"], 4), ")"),
+    palm_beach_data$Buchanan - pred_reduced[,"fit"]
+  )
+)
+
+colnames(summary_table) <- c("Statistic", "$m_{full}$", "$m_{reduced}$")
+
+kable(
+  pred_summary,
+  caption = "Figure 4: Summary Table Comparing Predictions of Full and Reduced Models",
+  align = c("l", "c", "c"),
+  format = "markdown",
+  escape = FALSE
+)
+```
+
+Figure 4 shows the predicted values for vote counts in Palm Beach in 2000 under both models. In the full model, voting data from Palm Beach in 1996 is included, and we see that even then the model predicts a vote count much lower than the observed vote count. The prediction interval under the full model doesn't include the observed value. In the reduced model, voting data from Palm Beach in 1996 isn't included, so we can see how the observed count in 2000 compares to the rest of Florida. We see that the predicted count under the reduced model is even lower than for the full model, and the prediction interval is also narrower. Then we conclude that the observed count for Palm Beach is an outlier under both models.
+
+## Conclusion
+
+Overall, our analysis has shown that compared to voting data for the Reform Party in Palm Beach in 1996, the results from 2000 are irregularly high. Additionally, when compared to voting data for the Reform party for Florida from 1996, the results from 2000 are also statistically significant. Therefore we can conclude that there is evidence that Buchanan received more
+votes than expected in Palm Beach County.
+
+# Respiratory Rates for Children (20 Marks)
+
+
+
+```{r q2_data}
+RespiratoryRates <- readRDS("C:/Users/Saioa Galvin/OneDrive - University of Edinburgh/y4s2/Applied Stats/Applied_stats/RespiratoryRates.rds")
+
+```
