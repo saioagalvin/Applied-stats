@@ -83,16 +83,16 @@ document.addEventListener("DOMContentLoaded", function() {
 
 # The Dramatic US Presidential Election 2000 (20 Marks)
 
-To examine if voting for the Reform party was irregular in Palm Beach, Florida in 2000, we examine a dataset of vote counts for the Reform party across the 67 counties in Florida over 1996 and 2000.
+To examine if voting for the Reform party was irregular in Palm Beach, Florida in 2000, I have examined a dataset of vote counts for the Reform party across the 67 counties in Florida over 1996 and 2000.
 
 ## EDA
 
-First, we conduct EDA in Figure 1. This plot shows that some counties saw a dramatic increase in votes for the Reform party in 2000 (when Buchanan was candidate) compared to 1996 (when Perot was candidate). We are particularly interested in Palm Beach for this analysis, and we see that there is evidence of a change of vote count between the two elections in that county.
+First, I conducted EDA in Figure 1. This plot shows that some counties saw a dramatic increase in votes for the Reform party in 2000 (when Buchanan was candidate) compared to 1996 (when Perot was candidate). We are particularly interested in Palm Beach for this analysis, and this plot shows evidence of a change of vote count between the two elections in that county.
 
 ```{r q1_eda, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
 elections <- read.table("BushGore.dat", header = TRUE)
 
-elections_long <- pivot_longer(df,
+elections_long <- pivot_longer(elections,
                         cols = c(Perot, Buchanan),
                         names_to = "Candidate",
                         values_to = "Votes")
@@ -115,7 +115,7 @@ The full model is
 $$m_{full} : \text{Buchanan}_i = \beta_0 + \beta_1\text{Perot}_i + \epsilon_i, \\
 \epsilon_i \sim N(0, \sigma^2) \text{ for } i = 1, \dots, 67,$$
 
-where $\text{Buchanan}_i$ is the vote count for county $i$ in 2000, $\beta_0$ is the intercept, $\beta_1$ is the coefficient for vote count $\text{Perot}_i$ in county $i$ in 1996. We assume residual error $\epsilson_i$ is independently normally distributed, with constant variance $\sigma^2$.
+where $\text{Buchanan}_i$ is the vote count for county $i$ in 2000, $\beta_0$ is the intercept, $\beta_1$ is the coefficient for vote count $\text{Perot}_i$ in county $i$ in 1996. We assume residual error $\epsilon_i$ is independently normally distributed, with constant variance $\sigma^2$.
 
 To evaluate this model, we can run the following code in R.
 
@@ -124,10 +124,10 @@ full_model <- lm(formula = Buchanan ~ Perot, data = elections)
 summary(full_model)
 ```
 
-As expected, from the summary of $m_{full$ we see that the $p$-value for $\beta_1$ is very significant, indicating that the two years of voting habits across Florida are highly correlated. We can look at behaviour on a county-level in Figure 2.
+As expected, from the summary of $m_{full}$ we see that the $p$-value for $\beta_1$ is very significant, indicating that the two years of voting habits across Florida are highly correlated. We can look at behaviour on a county-level in Figure 2.
 
 ```{r m_full_scatter, echo = TRUE, message = FALSE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
-ggplot(df, aes(x = Perot, y = Buchanan, label = County)) +
+ggplot(elections, aes(x = Perot, y = Buchanan, label = County)) +
   geom_point(size = 7) +
   geom_text(nudge_y = 50, size = 5) +
   geom_smooth(method = "lm", se = FALSE, color = "red") +
@@ -140,12 +140,11 @@ ggplot(df, aes(x = Perot, y = Buchanan, label = County)) +
 
 By plotting the regression line in Figure 2, we see that most points are fitted by $m_{full}$, apart from a few outliers. We see that the most significant outlier is Palm Beach.
 
-Additionally, we can find the county that that had the largest deviation from the expected Buchanan vote.
+Additionally, we can model the residuals to check assumptions and outliers.
 
-```{r outlier_checking}
-elections$residuals <- resid(full_model)
-
-elections[which.max(elections$residuals), ]
+```{r full_residuals, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+par(mfrow = c(2,2))
+plot(full_model)
 ```
 
 This indicates that can compare our full model to a reduced model without Palm Beach,
@@ -163,12 +162,16 @@ reduced_model <- lm(formula = Buchanan ~ Perot, data = reduced_elections)
 summary(reduced_model)
 ```
 
+```{r reduced_residuals, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+par(mfrow = c(2,2))
+plot(reduced_model)
+```
+
 ## Evaluating Our Models
 
 From the summary of $m_{reduced}$ we can evaluate model statistics to compare performance. Figure 3 shows this in table form.
 
 ```{r full_v_reduced_table}
-# Create summary table
 summary_table <- data.frame(
   Statistic = c(
     "$R^2$",
@@ -209,13 +212,13 @@ kable(
 )
 ```
 
-From this table we can deduce that $m_{reduced}$ has a much higher $R^2$ and Adjusted $R^2$. 
+From this table we can deduce that $m_{reduced}$ has a much higher $R^2$ and Adjusted $R^2$.
 
-Here, 
+Here,
 
 $$R^2 = 1 - \frac{RSS}{TSS} = 1 - \frac{\sum_{i=1}^n (\text{Buchanan}_i - \widehat{\text{Buchanan}}_i)^2}{\sum_{i=1}^n (\text{Buchanan}_i - \overline{\text{Buchanan}}_i)^2}$$
 
-and 
+and
 
 $$\text{Adjusted } R^2 = 1 - (1 - R^2)\frac{n - 1}{n - p - 1},$$
 
@@ -225,11 +228,11 @@ The $R^2$ and Adjusted $R^2$ represent the goodness-of-fit of our models, so the
 
 The intercept estimate $\hat{\beta}_0$ represents an estimate of votes for Buchanan if votes for Perot were zero. Therefore it is more important to look at the slope estimate $\hat{\beta}_1$ in our analysis, as this represents the expected change in Buchanan votes given a 1-vote increase in Perot votes. We can see that the relationship between Buchanan votes and Perot votes changes between $m_{full}$ and $m_{reduced}$ as $\hat{\beta}_1$ decreases.
 
-The 95\% confidence intervals for our coefficient estimates can be written as
+The 95% confidence intervals for our coefficient estimates can be written as
 
 $$\hat{\beta}_k \pm t_{n - p, 0.975} \times SE(\hat{\beta}_k) \text{ for } k = 0,1$$
 
-where $t_{n - p, 0.975}$ is the $t$ statistic for our 95\% CI with $n$ total number of observations and $p=2$ total number of parameters. Also, $SE(\hat{\beta}_k)$ is the standard error of our coefficient estimate.
+where $t_{n - p, 0.975}$ is the $t$ statistic for our 95% CI with $n$ total number of observations and $p=2$ total number of parameters. Also, $SE(\hat{\beta}_k)$ is the standard error of our coefficient estimate.
 
 The confidence intervals give the range of plausible values at $95%$ confidence. As the CI for $\hat{\beta}_1$ for both models doesn't include 0, we can conclude that Perot votes predict Buchanan votes. Additionally, the CI for $\hat{\beta}_1$ for $m_{reduced}$ is half the size of that for $m_{full}$, indicating a more precise estimate.
 
@@ -285,14 +288,130 @@ Figure 4 shows the predicted values for vote counts in Palm Beach in 2000 under 
 
 ## Conclusion
 
-Overall, our analysis has shown that compared to voting data for the Reform Party in Palm Beach in 1996, the results from 2000 are irregularly high. Additionally, when compared to voting data for the Reform party for Florida from 1996, the results from 2000 are also statistically significant. Therefore we can conclude that there is evidence that Buchanan received more
-votes than expected in Palm Beach County.
+Overall, our analysis has shown that compared to voting data for the Reform Party in Palm Beach in 1996, the results from 2000 are irregularly high. Additionally, when compared to voting data for the Reform party for Florida from 1996, the results from 2000 are also statistically significant. Therefore we can conclude that there is evidence that Buchanan received more votes than expected in Palm Beach County.
 
 # Respiratory Rates for Children (20 Marks)
 
+The following analysis investigates the respiratory rates of children dependent on their age. This is to allow physicians to clearly judge when a child's respiratory rate is high.
 
+## EDA
 
-```{r q2_data}
-RespiratoryRates <- readRDS("C:/Users/Saioa Galvin/OneDrive - University of Edinburgh/y4s2/Applied Stats/Applied_stats/RespiratoryRates.rds")
+In my analysis, I have used respiratory rates in breaths per minute from 618 children from ages 0.1 month to 36.0 months, with replicates for some ages. The structure of this data is shown in Figure 5. There is a clear relationship between age and respiratory rate. 
+
+```{r q2_data, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+respiratoryrates <- readRDS("RespiratoryRates.rds")
+
+ggplot(data = respiratoryrates, aes(x = Age, y = Rate)) +
+  geom_point(size = 3) +
+  labs(x = "Age (Months)", 
+       y = "Respiratory Rate (Breaths per minute)",
+       title = "Figure 5: Respiratory Rates of Children Aged 0 to 3"
+       )
 
 ```
+
+## Summary of Analysis
+
+In order to identify high respiratory rates for a child of a given age, I have found the percentiles of the data. 
+
+Denoting respiratory rate in breaths per minute by variable $Y$, we can find the $p^{th}$ percentile, $\text{Pr}(Y \leq q) = p$ for some $p \in [0,1]$. Let us assume that $Y \sim N(\mu($`age`$), \sigma^2)$, so it is normally distributed with constant variance, and also assume that $\mathbb{E}(Y) = \mu($`age`$)$ is linear with `age`.
+
+In order to find the value of $q$ for the $p^{th}$ percentile, we can standardise $Y$ as follows.
+
+$$\text{Pr}\left(\frac{Y  - \mu(\text{age})}{\sigma} \leq \frac{q - \mu(\text{age})}{\sigma}\right) = p \\
+\Rightarrow \Phi\left(\frac{q - \mu(\text{age})}{\sigma}\right) = p,$$
+
+where $\Phi$ is the cumulative distribution function of the standard normal distribution. Finally we can solve for $q$ to find a function for the respiratory rate at percentile $q$ and any chosen age.
+
+$$q(p,\text{age}) = \mu(\text{age}) + \sigma \Phi^{-1}(p),$$
+
+where $\Phi^{-1}$ is the quantile function of the standard normal distribution. We can run this in R.
+
+First, as we have assumed $Y \sim N(\mu($`age`$), \sigma^2)$ and $\mu(\text{age})$, we can fit a linear model for respiratory rate as a function of age. We can write
+
+$$Y = \beta_0 + \beta_1 \text{age}_i + \epsilon_i \text{ with } \epsilon_i \sim N(0,\sigma^2) \text{ for } i = 1, \dots, n.\\
+\Rightarrow \mathbb{E}(Y) = \mu(\text{age})_i = \beta_0 + \beta_1\text{age}_i$$ 
+where $n$ is the total number of observations. We fit this model in R as follows, and extract estimates for $\beta_0, \beta_1$ and $\sigma$.
+
+```{r finding_p, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+lm_rr <- lm(formula = Rate ~ Age, data = respiratoryrates)
+summary(lm_rr)
+```
+```{r residuals, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+par(mfrow = c(2,2))
+plot(lm_rr)
+```
+From the coefficients of this fitted model, we can find an estimate for the mean respiratory rate for each age as $\hat{\mu}(\text{age}) = \hat{\beta}_0 + \hat{\beta}_1 \times \text{age}$. The estimate for $\hat{\beta}_0$ is $47.05216$ and the estimate for $\hat{\beta}_1$ is $-0.69571$.
+
+We can also deduce $\sigma$ from this model, which is estimated using the residual standard error, $\hat{\sigma} = 7.842$.
+
+The final step for estimating $q$ now is $\Phi^{-1}(p)$, which is found using `qnorm` in R. Figure 6 represents an extract of percentiles found for the data.
+
+```{r estimating_q}
+# first creating a function for mu
+mu_function <- function(age){
+  lm_rr$coefficients[1] + lm_rr$coefficients[2] * age
+}
+
+# now creating a function for q
+q_function <- function(p, age){
+  mu_function(age) + summary(lm_rr)$sigma * qnorm(p)
+}
+
+# create a vector of percentiles
+p_vals <- c(0.01, 0.05, 0.50, 0.95, 0.99)
+
+# apply to our data
+percentiles <- sapply(p_vals, function(p) q_function(p, respiratoryrates$Age))
+
+# convert to a df
+percentile_data <- data.frame(
+  Age = respiratoryrates$Age,
+  Percentiles = percentiles
+)
+
+colnames(percentile_data)[-1] <- c("1%", "5%", "50%", "95%", "99%")
+
+kable(
+  head(percentile_data, 5),
+  caption = "Figure 6: Extract of Respiratory Rate Percentile Estimates for Age",
+  align = c("l", "c", "c"),
+  format = "markdown",
+  escape = FALSE
+)
+```
+
+## Reference Range of Normal Respiratory Rates in Children Aged 0-3 Years
+
+We can now plot these percentiles for use of medical practitioners. These percentiles can help understand the respiratory rate of a patient relative to the distribution of respiratory rates across a population, to give an indication whether they are high or low. If a patient is above the red line, they have abnormally high rates compared to most patients their age.
+
+```{r plotting_percentiles, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+# long format
+percentile_long <- pivot_longer(
+  percentile_data,
+  cols = -Age,
+  names_to = "Percentiles",
+  values_to = "Rate"
+)
+
+ggplot() +
+  geom_point(data = respiratoryrates, aes(x = Age, y = Rate), size = 3) +
+  geom_line(data = percentile_long, aes(x = Age, y = Rate, colour = Percentiles), size = 1) +
+  labs(
+    x = "Age (Months)",
+    y = "Respiratory Rate (Breaths per minute)",
+    title = "Figure 7: Respiratory Rate Percentile Curves"
+  ) +
+  scale_colour_manual(values = c("1%" = "firebrick",
+                                 "5%" = "orange",
+                                 "50%" = "forestgreen",
+                                 "95%" = "orange",
+                                 "99%" = "firebrick"))
+
+```
+
+## Limitations of Analysis
+
+# Crime Rate in Florida (15 Marks)
+
+# Course Evaluations at the University of Texas at Austin (45 Marks)
