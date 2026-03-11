@@ -37,6 +37,9 @@ suppressPackageStartupMessages({
   library(purrr)
   library(broom)
   library(triangle)
+  library(corrplot)
+  library(GGally)
+  library(ggfortify)
 })
 
 theme_set(
@@ -90,13 +93,17 @@ To examine if voting for the Reform party was irregular in Palm Beach, Florida i
 First, I conducted EDA in Figure 1. This plot shows that some counties saw a dramatic increase in votes for the Reform party in 2000 (when Buchanan was candidate) compared to 1996 (when Perot was candidate). We are particularly interested in Palm Beach for this analysis, and this plot shows evidence of a change of vote count between the two elections in that county.
 
 ```{r q1_eda, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+# load data
 elections <- read.table("BushGore.dat", header = TRUE)
 
+# long format for plotting
 elections_long <- pivot_longer(elections,
                         cols = c(Perot, Buchanan),
                         names_to = "Candidate",
                         values_to = "Votes")
 
+# plotting votes by county
 ggplot(elections_long, aes(x = County, y = Votes, group = County)) +
   geom_line(color = "gray70") +
   geom_point(aes(color = Candidate), size = 7) +
@@ -120,13 +127,19 @@ where $\text{Buchanan}_i$ is the vote count for county $i$ in 2000, $\beta_0$ is
 To evaluate this model, we can run the following code in R.
 
 ```{r full_model, echo = TRUE, message = FALSE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+# fitting the full linear model
 full_model <- lm(formula = Buchanan ~ Perot, data = elections)
+
+# summary statistics
 summary(full_model)
 ```
 
 As expected, from the summary of $m_{full}$ we see that the $p$-value for $\beta_1$ is very significant, indicating that the two years of voting habits across Florida are highly correlated. We can look at behaviour on a county-level in Figure 2.
 
 ```{r m_full_scatter, echo = TRUE, message = FALSE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+# plotting model on data
 ggplot(elections, aes(x = Perot, y = Buchanan, label = County)) +
   geom_point(size = 7) +
   geom_text(nudge_y = 50, size = 5) +
@@ -143,6 +156,8 @@ By plotting the regression line in Figure 2, we see that most points are fitted 
 Additionally, we can model the residuals to check assumptions and outliers.
 
 ```{r full_residuals, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+# plotting residuals
 par(mfrow = c(2,2))
 plot(full_model)
 ```
@@ -157,12 +172,18 @@ where we have assumed that Palm Beach corresponds to $i = 67$ in $m_{full}$.
 This will show the significance of changes in Palm Beach voting habits between 1996 and 2000, and give an indication of whether they were irregular in 2000.
 
 ```{r reduced_model}
+
+# fitting reduced model
 reduced_elections <- elections[elections$County != "PalmBeach", ]
 reduced_model <- lm(formula = Buchanan ~ Perot, data = reduced_elections)
+
+# summary statistics
 summary(reduced_model)
 ```
 
 ```{r reduced_residuals, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+# reduced model residuals
 par(mfrow = c(2,2))
 plot(reduced_model)
 ```
@@ -172,6 +193,8 @@ plot(reduced_model)
 From the summary of $m_{reduced}$ we can evaluate model statistics to compare performance. Figure 3 shows this in table form.
 
 ```{r full_v_reduced_table}
+
+# creating a comparison table of summary statistics
 summary_table <- data.frame(
   Statistic = c(
     "$R^2$",
@@ -241,6 +264,8 @@ The confidence intervals give the range of plausible values at $95%$ confidence.
 Finally, we can evaluate how well our models predict results for Palm Beach.
 
 ```{r predicting_palm}
+
+# creating a dataset of just palm beach data to predict on
 palm_beach_data <- elections[elections$County == "PalmBeach", ]
 
 # using full model
@@ -249,6 +274,7 @@ pred_full <- predict(full_model, newdata = palm_beach_data, interval = "predicti
 # using reduced model
 pred_reduced <- predict(reduced_model, newdata = palm_beach_data, interval = "prediction", level = 0.95)
 
+# summary statistics for prediction
 pred_summary <- data.frame(
   Statistic = c(
     "County",
@@ -296,23 +322,25 @@ The following analysis investigates the respiratory rates of children dependent 
 
 ## EDA
 
-In my analysis, I have used respiratory rates in breaths per minute from 618 children from ages 0.1 month to 36.0 months, with replicates for some ages. The structure of this data is shown in Figure 5. There is a clear relationship between age and respiratory rate. 
+In my analysis, I have used respiratory rates in breaths per minute from 618 children from ages 0.1 month to 36.0 months, with replicates for some ages. The structure of this data is shown in Figure 5. There is a clear relationship between age and respiratory rate.
 
 ```{r q2_data, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+# load in data
 respiratoryrates <- readRDS("RespiratoryRates.rds")
 
+# scatter plot
 ggplot(data = respiratoryrates, aes(x = Age, y = Rate)) +
   geom_point(size = 3) +
   labs(x = "Age (Months)", 
        y = "Respiratory Rate (Breaths per minute)",
        title = "Figure 5: Respiratory Rates of Children Aged 0 to 3"
        )
-
 ```
 
 ## Summary of Analysis
 
-In order to identify high respiratory rates for a child of a given age, I have found the percentiles of the data. 
+In order to identify high respiratory rates for a child of a given age, I have found the percentiles of the data.
 
 Denoting respiratory rate in breaths per minute by variable $Y$, we can find the $p^{th}$ percentile, $\text{Pr}(Y \leq q) = p$ for some $p \in [0,1]$. Let us assume that $Y \sim N(\mu($`age`$), \sigma^2)$, so it is normally distributed with constant variance, and also assume that $\mathbb{E}(Y) = \mu($`age`$)$ is linear with `age`.
 
@@ -330,17 +358,24 @@ where $\Phi^{-1}$ is the quantile function of the standard normal distribution. 
 First, as we have assumed $Y \sim N(\mu($`age`$), \sigma^2)$ and $\mu(\text{age})$, we can fit a linear model for respiratory rate as a function of age. We can write
 
 $$Y = \beta_0 + \beta_1 \text{age}_i + \epsilon_i \text{ with } \epsilon_i \sim N(0,\sigma^2) \text{ for } i = 1, \dots, n.\\
-\Rightarrow \mathbb{E}(Y) = \mu(\text{age})_i = \beta_0 + \beta_1\text{age}_i$$ 
-where $n$ is the total number of observations. We fit this model in R as follows, and extract estimates for $\beta_0, \beta_1$ and $\sigma$.
+\Rightarrow \mathbb{E}(Y) = \mu(\text{age})_i = \beta_0 + \beta_1\text{age}_i$$ where $n$ is the total number of observations. We fit this model in R as follows, and extract estimates for $\beta_0, \beta_1$ and $\sigma$.
 
 ```{r finding_p, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+# fitting a linear model for Y against age
 lm_rr <- lm(formula = Rate ~ Age, data = respiratoryrates)
+
+# summary statistics
 summary(lm_rr)
 ```
+
 ```{r residuals, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+# model residuals
 par(mfrow = c(2,2))
 plot(lm_rr)
 ```
+
 From the coefficients of this fitted model, we can find an estimate for the mean respiratory rate for each age as $\hat{\mu}(\text{age}) = \hat{\beta}_0 + \hat{\beta}_1 \times \text{age}$. The estimate for $\hat{\beta}_0$ is $47.05216$ and the estimate for $\hat{\beta}_1$ is $-0.69571$.
 
 We can also deduce $\sigma$ from this model, which is estimated using the residual standard error, $\hat{\sigma} = 7.842$.
@@ -348,6 +383,7 @@ We can also deduce $\sigma$ from this model, which is estimated using the residu
 The final step for estimating $q$ now is $\Phi^{-1}(p)$, which is found using `qnorm` in R. Figure 6 represents an extract of percentiles found for the data.
 
 ```{r estimating_q}
+
 # first creating a function for mu
 mu_function <- function(age){
   lm_rr$coefficients[1] + lm_rr$coefficients[2] * age
@@ -386,6 +422,7 @@ kable(
 We can now plot these percentiles for use of medical practitioners. These percentiles can help understand the respiratory rate of a patient relative to the distribution of respiratory rates across a population, to give an indication whether they are high or low. If a patient is above the red line, they have abnormally high rates compared to most patients their age.
 
 ```{r plotting_percentiles, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
 # long format
 percentile_long <- pivot_longer(
   percentile_data,
@@ -394,6 +431,7 @@ percentile_long <- pivot_longer(
   values_to = "Rate"
 )
 
+# plotting the percentiles on the original scatter plot
 ggplot() +
   geom_point(data = respiratoryrates, aes(x = Age, y = Rate), size = 3) +
   geom_line(data = percentile_long, aes(x = Age, y = Rate, colour = Percentiles), size = 1) +
@@ -413,5 +451,157 @@ ggplot() +
 ## Limitations of Analysis
 
 # Crime Rate in Florida (15 Marks)
+
+Looking again at the 67 counties in Florida, this time I am investigating the relationship between income, education, urbanisation and crime. The dataset has all numerical covariates, with no missing values.
+
+## Part A: EDA
+
+The following plots examine the structure of our data. Figure 8 is a heatmap showing the correlation between the covariates and the response variable, crime. We see that all correlations are positive. The plot also shows that urbanisation (the percentage living in an urban environment) is the most correlated covariate with crimes (the annual number of crimes per 1000 residents), while income is the least correlated. We also observe high correlation between all covariates. This is useful to know for when we construct our model, as it should include interactions between covariates.
+
+```{r q3_data, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+# loading in data
+florida <- readRDS("Florida.rds")
+
+# correlation matrix between numeric variables
+cor_matrix <- cor(florida[, c("Crime", "Income", "Education", "Urbanization")])
+
+# heatmap of correlations
+corrplot(cor_matrix, 
+         method = "color", 
+         addCoef.col = "black", 
+         tl.col = "black",
+         title = "Figure 8: Correlation Heatmap of Variables")
+```
+
+We can examine the trends of correlation further with a pairplot in Figure 9. This visualises the positive correlations between the variables we are interested in for this analysis.
+
+```{r pairplot, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+# pairplot
+ggpairs(florida[, c("Crime", "Income", "Education", "Urbanization")],
+        title = "Figure 9: Pairwise Relationships Between Numerical Variables")
+```
+
+To further explore the relationship between each covariate and the response variable, crime, we can fit simple linear regression models of crime rate on each predictor separately. These are
+
+$$\text{crime}_i = \alpha_0 + \alpha_1 \text{income}_i + \epsilon_i, \\
+\text{crime}_i = \beta_0 + \beta_1 \text{education}_i + \epsilon_i, \\
+\text{crime}_i = \gamma_0 + \gamma_1 \text{urbanisation}_i + \epsilon_i, \\
+\epsilon_i \sim N(0,\sigma^2) \text{ for each county } i = 1, \dots, 67.$$
+
+We can plot these models over the data, in Figure 10.
+
+```{r eda_reg, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+# fitting a model for each predictor
+
+p1 <- ggplot(florida, aes(x = Income, y = Crime)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  labs(title = "Crime vs Income")
+
+p2 <- ggplot(florida, aes(x = Education, y = Crime)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  labs(title = "Crime vs Education")
+
+p3 <- ggplot(florida, aes(x = Urbanization, y = Crime)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  labs(title = "Crime vs Urbanization")
+
+(p1 | p2) /
+(p3 | plot_spacer()) +
+  plot_annotation(title = "Figure 10: Fitting a Linear Model for Each Predictor")
+```
+
+```{r residuals_q3, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+
+lm_income <- lm(Crime ~ Income, florida)
+lm_education <- lm(Crime ~ Education, florida)
+lm_urban <- lm(Crime ~ Urbanization, florida)
+
+par(mfrow = c(2,2))
+plot(lm_income)
+title("Figure 11: Residual Plots for Crime vs Income", outer = TRUE)
+```
+
+```{r education, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+par(mfrow = c(2,2))
+plot(lm_education)
+title("Figure 12: Residual Plots for Crime vs Education", outer = TRUE)
+```
+
+```{r urban, echo = TRUE, message = TRUE, warning=FALSE, fig.width=20, fig.height=20, fig.align='center'}
+par(mfrow = c(2,2))
+plot(lm_urban)
+title("Figure 13: Residual Plots for Crime vs Urbanisation", outer = TRUE)
+```
+
+## Part B: Fitting Interactions
+
+In order to capture the correlation observed in Figure 8, we can expand the linear models above to include interactions. The following three models look at all possible models with two predictors and interactions:
+
+$$m_1 : \text{crime}_i = \alpha_0 + \alpha_1 \text{income}_i + \alpha_2\text{education}_i + \alpha_3 (\text{income}_i \cdot \text{education}_i) + \epsilon_i, \\
+m_2: \text{crime}_i = \beta_0 + \beta_1 \text{education}_i + \beta_2 \text{urbanisation}_i + \beta_3 (\text{education}_i : \text{urbanisation}_i) + \epsilon_i, \\
+m_3 : \text{crime}_i = \gamma_0 + \gamma_1 \text{urbanisation}_i + \gamma_2 \text{income}_i + \gamma_3 (\text{urbanisation}_i : \text{income}_i) + \epsilon_i, \\
+\epsilon_i \sim N(0, \sigma^2) \text{ for each county } i = 1, \dots, 67.$$
+
+Additionally, we can fit a single model with all interactions,
+
+$$m_{full} : \text{crime}_i = \lambda_0 + \lambda_1 \text{income}_i + \lambda_2 \text{education}_i + \lambda_3 \text{urbanisation}_i + \\
+\lambda_4 (\text{income}_i \cdot \text{education}_i) + \\
+\lambda_5 (\text{education}_i : \text{urbanisation}_i) + \\
+\lambda_6 (\text{urbanisation}_i : \text{income}_i) + \epsilon_i \\
+\epsilon_i \sim N(0, \sigma^2) \text{ for each county } i = 1, \dots, 67.$$
+
+```{r q3_model_comparison}
+
+# models
+m1 <- lm(Crime ~ Income * Education, florida)
+m2 <- lm(Crime ~ Education * Urbanization, florida)
+m3 <- lm(Crime ~ Urbanization * Income, florida)
+mfull <- lm(Crime ~ (Income + Education + Urbanization)^2, florida)
+
+# find coefficients of full model
+full_coef_names <- rownames(summary(mfull)$coef)
+
+# create a function to find summary stats for each model
+summary_function_aligned <- function(model, full_coef_names){
+  coefs <- summary(model)$coef
+  ci <- confint(model)
+  
+  stats <- rep(NA, length(full_coef_names) * 2)  # estimate + CI
+  names(stats) <- rep(full_coef_names, each = 2)
+  
+  for(i in rownames(coefs)){
+    idx <- which(full_coef_names == i)
+    if(length(idx) > 0){
+      stats[2*idx - 1] <- round(coefs[i,1], 4)                      # estimate
+      stats[2*idx] <- paste0("(", round(ci[i,1],4), ", ", round(ci[i,2],4), ")")  # CI
+    }
+  }
+  return(stats)
+}
+
+interactions_table <- data.frame(
+  Coefficient = c(rbind(full_coef_names, paste0("95% CI ", full_coef_names))),
+  Model1 = summary_function_aligned(m1, full_coef_names),
+  Model2 = summary_function_aligned(m2, full_coef_names),
+  Model3 = summary_function_aligned(m3, full_coef_names),
+  Modelfull = summary_function_aligned(mfull, full_coef_names)
+)
+
+kable(
+  interactions_table,
+  caption = "Figure 14: Summary Table Comparing Interaction Models",
+  align = c("l", "c", "c", "c", "c"),
+  format = "markdown",
+  escape = FALSE
+)
+```
+
+## Part C: Non-technical Summary
 
 # Course Evaluations at the University of Texas at Austin (45 Marks)
